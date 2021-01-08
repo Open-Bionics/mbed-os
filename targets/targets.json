@@ -7398,5 +7398,56 @@
     "__build_tools_metadata__": {
         "version": "1",
         "public": false
-    }
+    },
+    
+    "HERO_BLE": {
+		"inherits": [
+			"MCU_NRF52832"
+		],
+        "release_versions": [
+            "5"
+        ],
+        "detect_code": [
+			"1101"
+		],
+        "device_name": "nRF52832_xxAA",
+        "device_has_remove": [
+            "ITM"
+        ],
+        "extra_labels_add": [
+            "Open_Bionics",
+            "HERO_BLE"
+        ],
+        "components_add": [
+            "SPIF"
+        ],
+        "macros_add": [
+            "WSF_MAX_HANDLERS=10",
+            "CONFIG_GPIO_AS_PINRESET",
+            "NRF52_PAN_12",
+            "NRF52_PAN_15",
+            "NRF52_PAN_20",
+            "NRF52_PAN_30",
+            "NRF52_PAN_31",
+            "NRF52_PAN_36",
+            "NRF52_PAN_51",
+            "NRF52_PAN_53",
+            "NRF52_PAN_54",
+            "NRF52_PAN_55",
+            "NRF52_PAN_58",
+            "NRF52_PAN_62",
+            "NRF52_PAN_63",
+            "NRF52_PAN_64"
+        ],
+		"target_overrides": {
+            "target.lf_clock_src": "NRF_LF_SRC_RC",
+            "target.lf_clock_rc_calib_timer_interval": 16,
+            "target.lf_clock_rc_calib_mode_config": 2,
+            "target.uart_0_fifo_size": 32,
+            "spif-driver.SPI_MOSI": "SPIM_PSELMOSI",
+            "spif-driver.SPI_MISO": "SPIM_PSELMISO",
+            "spif-driver.SPI_CLK": "SPIM_PSELSCK",
+            "spif-driver.SPI_CS": "SPIM_PSELSS"
+		}
+	}
 }
