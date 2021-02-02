@@ -22,6 +22,7 @@ The following targets are supported:
 - Ambiq Micro targets
 - Analog Devices targets
 - ARM FM targets
+- ARM SSG targets
 - Cypress targets
 - Freescale targets
 - GigaDevice targets
@@ -32,6 +33,7 @@ The following targets are supported:
 - Samsung targets
 - Silicon Labs targets
 - STM targets
+- Toshiba targets
 - WICED targets
 
 ### Supported toolchains
@@ -75,3 +77,24 @@ If you're running CMake directly, you may need to pass it in yourself as follows
 ```
 cmake -S <source-dir> -B <build-dir> -DCMAKE_BUILD_TYPE=debug
 ```
+
+## How to build a greentea test
+
+Install prerequisites suggested in the previous section and follow the below steps to build:
+* Generate the `.mbedbuild/` configuration directory for the Mbed target you want to run the test on using [mbed-os-example-blinky](https://github.com/ARMmbed/mbed-os-example-blinky)
+```
+$ mbedtools configure -t <TOOLCHAIN> -m <MBED_TARGET> 
+```
+* Copy `.mbedbuild/` into the test suite directory.
+* Set your current directory to the test suite directory
+* Run the following command to build the test binary with the full profile
+
+  ```
+  touch mbed-os.lib && mkdir cmake_build && cd cmake_build && cmake .. -G Ninja && cmake --build .
+  ```
+* Run the following command to build the test binary with the baremetal profile
+  ```
+  touch mbed-os.lib && mkdir cmake_build && cd cmake_build && cmake .. -G Ninja -DMBED_BAREMETAL_GREENTEA_TEST=ON && cmake --build .
+  ```
+
+Note: These steps will change when `mbedtools` implements a sub-command to invoke Greentea tests
