@@ -40,16 +40,25 @@
 #define MBED_OBJECTS_H
 
 #include "cmsis.h"
+#include "sdk_config.h"                     // NRFX_SPI_ENABLED etc.
+#include "nrfx_common.h"                    // NRFX_CHECK()
 #include "PortNames.h"
 #include "PeripheralNames.h"
 #include "PinNames.h"
-#if NRFX_SPIM_ENABLED && DEVICE_SPI
-#include "nrfx_spim.h"
-#elif DEVICE_SPI
-#include "nrfx_spi.h"
-#endif
-#include "nrf_twi.h"
 
+#if DEVICE_SPI
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+#include "nrfx_spi.h"
+#endif  // NRFX_CHECK(NRFX_SPI_ENABLED)
+#if NRFX_CHECK(NRFX_SPIM_ENABLED)
+#include "nrfx_spim.h"
+#endif  // NRFX_CHECK(NRFX_SPIM_ENABLED)
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+#include "nrfx_spis.h"
+#endif  // NRFX_CHECK(NRFX_SPIS_ENABLED)
+#endif  // DEVICE_SPI
+
+#include "nrf_twi.h"
 #include "nrf_pwm.h"
 
 #ifdef __cplusplus
@@ -91,21 +100,28 @@ struct serial_s {
 #endif
 };
 
+/**< SPI/SPISlave struct */
 struct spi_s {
-    int instance;
-    PinName cs;
-#if NRFX_SPIM_ENABLED && DEVICE_SPI
-    nrfx_spim_config_t config;
-#elif DEVICE_SPI
-    nrfx_spi_config_t config;
-#endif
-    bool update;
+    int instance;                       // SPI instance number determined by 'pin_instance_spi(mosi, miso, sclk)'
+    PinName cs;                         // chip select pin (not stored within config to allow it to be manually manipulated)
+    bool update;                        // flag to force an update of the driver instance
+
+#if DEVICE_SPI
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+    nrfx_spi_config_t master_config;    // SPI master instance config (contains pins, freq, mode etc.)
+#elif NRFX_CHECK(NRFX_SPIM_ENABLED)
+    nrfx_spim_config_t master_config;   // SPI master instance config (contains pins, freq, mode etc.)
+#endif  // NRFX_CHECK(NRFX_SPI_ENABLED) elif NRFX_CHECK(NRFX_SPIM_ENABLED)
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+    nrfx_spis_config_t slave_config;    // SPI slave instance config (contains pins, freq, mode etc.)
+#endif  // NRFX_CHECK(NRFX_SPIS_ENABLED)
+#endif  // DEVICE_SPI
 
 #if DEVICE_SPI_ASYNCH
     uint32_t handler;
     uint32_t mask;
     uint32_t event;
-#endif
+#endif  // DEVICE_SPI_ASYNCH
 };
 
 struct port_s {

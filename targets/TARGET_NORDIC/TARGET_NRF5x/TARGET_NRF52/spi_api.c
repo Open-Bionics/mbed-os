@@ -44,52 +44,121 @@
 #include "pinmap_ex.h"
 #include "PeripheralPins.h"
 
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
-#include "nrfx_spim.h"
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
 #include "nrfx_spi.h"
 #endif
+#if NRFX_CHECK(NRFX_SPIM_ENABLED)
+#include "nrfx_spim.h"
+#endif
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+#include "nrfx_spis.h"
+#endif
 
-#if 0
+#if 1           // TODO, return this to 0 once debug complete
 #define DEBUG_PRINTF(...) printf(__VA_ARGS__)
 #else
 #define DEBUG_PRINTF(...)
 #endif
 
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
-/* Pre-allocate instances and share them globally. */
-static const nrfx_spim_t nordic_nrf5_spim_instance[4] = {
-    NRFX_SPIM_INSTANCE(0),
-    NRFX_SPIM_INSTANCE(1),
-    NRFX_SPIM_INSTANCE(2),
-    NRFX_SPIM_INSTANCE(3)
+#define NORDIC_NRF5_MAX_SPI_INST    4   /**< Maximum number of SPI instances (3 on NRF52832, 4 on NRF52840) */
+
+/**< An enum of SPI instance types (e.g. SPI/SPIM/SPIS) */
+enum spi_spim_spis_t
+{
+    NRFX_TYPE_NONE,                     /**< None/not configured SPI instance */
+    NRFX_TYPE_SPI,                      /**< Nordic legacy SPI master */
+    NRFX_TYPE_SPIM,                     /**< Nordic SPI master */
+    NRFX_TYPE_SPIS                      /**< Nordic SPI slave */
 };
 
-/* Keep track of which instance has been initialized. */
-static bool nordic_nrf5_spi_initialized[4] = { false, false, false, false };
+/**< Struct to store a pointer to the SPI instance, and to store it's instance type (e.g. SPI/SPIM/SPIS) */
+struct nordic_nrf5_spi_instance_t
+{
+    const void* ptr;                    /**< Pointer to the instance object */
+    const enum spi_spim_spis_t type;    /**< Type of the SPI instance (e.g. SPI/SPIM/SPIS) */
+    bool initialised;                   /**< Flag to keep track of which instances have been initialised */
+};
 
-/* Forware declare interrupt handler. */
-#if DEVICE_SPI_ASYNCH
-static void nordic_nrf5_spi_event_handler(nrfx_spim_evt_t const *p_event, void *p_context);
+
+// TODO, the following 'nrfx_spi_t' declarations may need to be 'static const'
+// TODO, add #if error checking if multiple instances of same number are enabled in sdk_config.h
+
+/* Pre-allocate either SPI, SPIM or SPIS instances, based on sdk_config.h. */
+// SPI/SPIM/SPIS Instance 0
+#if   NRFX_CHECK(NRFX_SPI0_ENABLED)
+    static const nrfx_spi_t spi_inst0 = NRFX_SPI_INSTANCE(0);
+    static const enum spi_spim_spis_t spi_inst0_type = NRFX_TYPE_SPI;
+    static nrfx_spi_config_t spi_inst0_config;
+#elif NRFX_CHECK(NRFX_SPIM0_ENABLED)
+    static const nrfx_spim_t spi_inst0 = NRFX_SPIM_INSTANCE(0);
+    static const enum spi_spim_spis_t spi_inst0_type = NRFX_TYPE_SPIM;
+    static nrfx_spim_config_t spi_inst0_config;
+#elif NRFX_CHECK(NRFX_SPIS0_ENABLED)
+    static const nrfx_spis_t spi_inst0 = NRFX_SPIS_INSTANCE(0);
+    static const enum spi_spim_spis_t spi_inst0_type = NRFX_TYPE_SPIS;
+    static nrfx_spis_config_t spi_inst0_config;
+#endif
+// SPI/SPIM/SPIS Instance 1
+#if   NRFX_CHECK(NRFX_SPI1_ENABLED)
+    static const nrfx_spi_t spi_inst1 = NRFX_SPI_INSTANCE(1);
+    static const enum spi_spim_spis_t spi_inst1_type = NRFX_TYPE_SPI;
+    static nrfx_spi_config_t spi_inst1_config;
+#elif NRFX_CHECK(NRFX_SPIM1_ENABLED)
+    static const nrfx_spim_t spi_inst1 = NRFX_SPIM_INSTANCE(1);
+    static const enum spi_spim_spis_t spi_inst1_type = NRFX_TYPE_SPIM;
+    static nrfx_spim_config_t spi_inst1_config;
+#elif NRFX_CHECK(NRFX_SPIS1_ENABLED)
+    static const nrfx_spis_t spi_inst1 = NRFX_SPIS_INSTANCE(1);
+    static const enum spi_spim_spis_t spi_inst1_type = NRFX_TYPE_SPIS;
+    static nrfx_spis_config_t spi_inst1_config;
+#endif
+// SPI/SPIM/SPIS Instance 2
+#if   NRFX_CHECK(NRFX_SPI2_ENABLED)
+    static const nrfx_spi_t spi_inst2 = NRFX_SPI_INSTANCE(2);
+    static const enum spi_spim_spis_t spi_inst2_type = NRFX_TYPE_SPI;
+    static nrfx_spi_config_t spi_inst2_config;
+#elif NRFX_CHECK(NRFX_SPIM2_ENABLED)
+    static const nrfx_spim_t spi_inst2 = NRFX_SPIM_INSTANCE(2);
+    static const enum spi_spim_spis_t spi_inst2_type = NRFX_TYPE_SPIM;
+    static nrfx_spim_config_t spi_inst2_config;
+#elif NRFX_CHECK(NRFX_SPIS2_ENABLED)
+    static const nrfx_spis_t spi_inst2 = NRFX_SPIS_INSTANCE(2);
+    static const enum spi_spim_spis_t spi_inst2_type = NRFX_TYPE_SPIS;
+    static nrfx_spis_config_t spi_inst2_config;
+#endif
+// SPIM Instance 3 (NRF52840 only)
+#if NRFX_CHECK(NRFX_SPIM3_ENABLED)
+    static const nrfx_spim_t spi_inst3 = NRFX_SPIM_INSTANCE(3);
+    static const enum spi_spim_spis_t spi_inst3_type = NRFX_TYPE_SPIM;
+    static nrfx_spim_config_t spi_inst3_config;
 #endif
 
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-
-/* Pre-allocate instances and share them globally. */
-static const nrfx_spi_t nordic_nrf5_spi_instance[3] = {
-    NRFX_SPI_INSTANCE(0),
-    NRFX_SPI_INSTANCE(1),
-    NRFX_SPI_INSTANCE(2)
+/* Array of pointers of pre-allocated instances and their SPI types (e.g. SPI/SPIM/SPIS). */
+static struct nordic_nrf5_spi_instance_t nordic_nrf5_spi_instance[NORDIC_NRF5_MAX_SPI_INST] = 
+{
+    { .ptr = &spi_inst0, .type = spi_inst0_type, .initialised = false },
+    { .ptr = &spi_inst1, .type = spi_inst1_type, .initialised = false },
+    { .ptr = &spi_inst2, .type = spi_inst2_type, .initialised = false },
+#if NRFX_CHECK(NRFX_SPIM3_ENABLED)   
+    { .ptr = &spi_inst3, .type = spi_inst3_type, .initialised = false }
+#else
+    { .ptr = NULL,       .type = NRFX_TYPE_NONE, .initialised = false }
+#endif
 };
 
-/* Keep track of which instance has been initialized. */
-static bool nordic_nrf5_spi_initialized[3] = { false, false, false };
-
-/* Forware declare interrupt handler. */
+// TODO, these may be able to be merged into a common event handler
+/* Forware declare interrupt handlers. */
 #if DEVICE_SPI_ASYNCH
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
 static void nordic_nrf5_spi_event_handler(nrfx_spi_evt_t const *p_event, void *p_context);
 #endif
-#endif //NRFX_SPI_ENABLED
+#if NRFX_CHECK(NRFX_SPIM_ENABLED)
+static void nordic_nrf5_spim_event_handler(nrfx_spim_evt_t const *p_event, void *p_context);
+#endif
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+static void nordic_nrf5_spis_event_handler(nrfx_spis_evt_t const *p_event, void *p_context);
+#endif
+#endif  // DEVICE_SPI_ASYNCH
 
 /* Forward declaration. These functions are implemented in the driver but not
  * set up in the NVIC due to it being relocated.
@@ -99,12 +168,10 @@ void SPIM1_SPIS1_TWIM1_TWIS1_SPI1_TWI1_IRQHandler(void);
 void SPIM2_SPIS2_SPI2_IRQHandler(void);
 
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
-
 /* Forward declaration. These functions are implemented in the driver but not
  * set up in the NVIC due to it being relocated.
  */
 void SPIM3_IRQHandler(void);
-
 #endif // NRFX_SPIM_ENABLED
 
 /**
@@ -126,6 +193,7 @@ static void spi_configure_driver_instance(spi_t *obj)
 #endif
 
     int instance = spi_inst->instance;
+    // TODO thow error if instance >= NORDIC_NRF5_MAX_SPI_INST
 
     /* Get pointer to object of the current owner of the peripheral. */
     void *current_owner = object_owner_spi2c_get(instance);
@@ -137,41 +205,63 @@ static void spi_configure_driver_instance(spi_t *obj)
         spi_inst->update = false;
 
         /* Clean up and uninitialize peripheral if already initialized. */
-        if (nordic_nrf5_spi_initialized[instance]) {
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
-            nrfx_spim_uninit(&nordic_nrf5_spim_instance[instance]);
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-            nrfx_spi_uninit(&nordic_nrf5_spi_instance[instance]);
+        if (nordic_nrf5_spi_instance[instance].initialised) {
+            switch (nordic_nrf5_spi_instance[instance].type) {
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+                case NRFX_TYPE_SPI:
+                    nrfx_spi_uninit(nordic_nrf5_spi_instance[instance].ptr);
+                    break;
 #endif
+#if NRFX_CHECK(NRFX_SPIM_ENABLED)
+                case NRFX_TYPE_SPIM:
+                    nrfx_spim_uninit(nordic_nrf5_spi_instance[instance].ptr);
+                    break;
+#endif
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+                case NRFX_TYPE_SPIS:
+                    nrfx_spis_uninit(nordic_nrf5_spi_instance[instance].ptr);
+                    break;
+#endif
+                default:
+                break;
+            }
         }
 
 #if DEVICE_SPI_ASYNCH
-        /* Set callback handler in asynchronous mode. */
-        if (spi_inst->handler) {
+            /* Set callback handler in asynchronous mode. */
+            if (spi_inst->handler) {
+                switch (nordic_nrf5_spi_instance[instance].type) {
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+                    case NRFX_TYPE_SPI:
+                        nrfx_spi_init(nordic_nrf5_spi_instance[instance].ptr, &(spi_inst->master_config), nordic_nrf5_spi_event_handler, obj);
+                        break;
+#endif  // NRFX_CHECK(NRFX_SPI_ENABLED)
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
-            nrfx_spim_init(&nordic_nrf5_spim_instance[instance], &(spi_inst->config), nordic_nrf5_spi_event_handler, obj);
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-            nrfx_spi_init(&nordic_nrf5_spi_instance[instance], &(spi_inst->config), nordic_nrf5_spi_event_handler, obj);
-#endif
-        } else {
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
-            nrfx_spim_init(&nordic_nrf5_spim_instance[instance], &(spi_inst->config), NULL, NULL);
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-            nrfx_spi_init(&nordic_nrf5_spi_instance[instance], &(spi_inst->config), NULL, NULL);
-#endif
+                    case NRFX_TYPE_SPIM:
+                        nrfx_spim_init(nordic_nrf5_spi_instance[instance].ptr, &(spi_inst->master_config), nordic_nrf5_spim_event_handler, obj);
+                        break;
+#endif  // NRFX_CHECK(NRFX_SPIM_ENABLED)
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+                    case NRFX_TYPE_SPIS:
+                        nrfx_spis_init(nordic_nrf5_spi_instance[instance].ptr, &(spi_inst->slave_config), nordic_nrf5_spis_event_handler, obj);
+                        break;
+#endif  // NRFX_CHECK(NRFX_SPIS_ENABLED)
+                    default:
+                    break;
+            }
         }
-#else
+#else   // DEVICE_SPI_ASYNCH
         /* Set callback handler to NULL in synchronous mode. */
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
         nrfx_spim_init(&nordic_nrf5_spim_instance[instance], &(spi_inst->config), NULL, NULL);
 #elif NRFX_CHECK(NRFX_SPI_ENABLED)
         nrfx_spi_init(&nordic_nrf5_spim_instance[instance], &(spi_inst->config), NULL, NULL);
-#endif
+#endif  // NRFX_CHECK(NRFX_SPIM_ENABLED) elif NRFX_CHECK(NRFX_SPI_ENABLED)
 
-#endif
+#endif  // DEVICE_SPI_ASYNCH
 
         /* Mark instance as initialized. */
-        nordic_nrf5_spi_initialized[instance] = true;
+        nordic_nrf5_spi_instance[instance].initialised = true;
 
         /* Claim ownership of peripheral. */
         object_owner_spi2c_set(instance, obj);
@@ -236,11 +326,7 @@ void spi_get_capabilities(PinName ssel, bool slave, spi_capabilities_t *cap)
  */
 void spi_init(spi_t *obj, PinName mosi, PinName miso, PinName sclk, PinName ssel)
 {
-#if DEVICE_SPI_ASYNCH
-    struct spi_s *spi_inst = &obj->spi;
-#else
-    struct spi_s *spi_inst = obj;
-#endif
+    struct spi_s *spi_inst = &obj->spi;     // point to the spi_s object owned by the SPI/SPISlave class
 
     /* Get instance based on requested pins. */
     spi_inst->instance = pin_instance_spi(mosi, miso, sclk);
@@ -253,27 +339,47 @@ void spi_init(spi_t *obj, PinName mosi, PinName miso, PinName sclk, PinName ssel
     /* Store chip select separately for manual enabling. */
     spi_inst->cs = ssel;
 
+    /* At this point we don't know whether we are initialising as master or slave, 
+     so we prepare the config structs for both (only if both are enabled within sdk_config.h) */
+#if NRFX_CHECK(NRFX_SPI_ENABLED) || NRFX_CHECK(NRFX_SPIM_CHECK)
     /* Store pins except chip select. */
-    spi_inst->config.sck_pin        = sclk;
-    spi_inst->config.mosi_pin       = mosi;
-    spi_inst->config.miso_pin       = miso;
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
-    spi_inst->config.ss_pin         = NRFX_SPIM_PIN_NOT_USED;
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    spi_inst->config.ss_pin         = NRFX_SPI_PIN_NOT_USED;
-#endif
+    spi_inst->master_config.sck_pin        = sclk;
+    spi_inst->master_config.mosi_pin       = mosi;
+    spi_inst->master_config.miso_pin       = miso;
+    spi_inst->master_config.irq_priority   = SPI_DEFAULT_CONFIG_IRQ_PRIORITY;
+    spi_inst->master_config.orc            = SPI_FILL_CHAR;
+
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+    spi_inst->master_config.ss_pin         = NRFX_SPI_PIN_NOT_USED;
+    spi_inst->master_config.frequency      = NRF_SPI_FREQ_4M;
+    spi_inst->master_config.mode           = NRF_SPI_MODE_0;
+    spi_inst->master_config.bit_order      = NRF_SPI_BIT_ORDER_MSB_FIRST;
+
+#elif NRFX_CHECK(NRFX_SPIM_ENABLED)
+    spi_inst->master_config.ss_pin         = NRFX_SPIM_PIN_NOT_USED;
+    spi_inst->master_config.frequency      = NRF_SPIM_FREQ_4M;
+    spi_inst->master_config.mode           = NRF_SPIM_MODE_0;
+    spi_inst->master_config.bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST;
+
+#endif  // NRFX_CHECK(NRFX_SPI_ENABLED) elif NRFX_CHECK(NRFX_SPIM_ENABLED)
+#endif  // NRFX_CHECK(NRFX_SPI_ENABLED) || NRFX_CHECK(NRFX_SPIM_CHECK)
+
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+    /* Store pins except chip select. */
+    spi_inst->slave_config.sck_pin        = sclk;
+    spi_inst->slave_config.mosi_pin       = mosi;
+    spi_inst->slave_config.miso_pin       = miso;
+    spi_inst->slave_config.csn_pin        = ssel;       // TODO, this may need to be PIN_NOT_USED
+
     /* Use the default config. */
-    spi_inst->config.irq_priority   = SPI_DEFAULT_CONFIG_IRQ_PRIORITY;
-    spi_inst->config.orc            = SPI_FILL_CHAR;
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
-    spi_inst->config.frequency      = NRF_SPIM_FREQ_4M;
-    spi_inst->config.mode           = NRF_SPIM_MODE_0;
-    spi_inst->config.bit_order      = NRF_SPIM_BIT_ORDER_MSB_FIRST;
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    spi_inst->config.frequency      = NRF_SPI_FREQ_4M;
-    spi_inst->config.mode           = NRF_SPI_MODE_0;
-    spi_inst->config.bit_order      = NRF_SPI_BIT_ORDER_MSB_FIRST;
-#endif
+    spi_inst->slave_config.irq_priority   = SPI_DEFAULT_CONFIG_IRQ_PRIORITY;
+    spi_inst->slave_config.orc            = SPI_FILL_CHAR;
+    spi_inst->slave_config.def            = SPI_FILL_CHAR;
+    spi_inst->slave_config.miso_drive     = NRFX_SPIS_DEFAULT_MISO_DRIVE;
+    spi_inst->slave_config.csn_pullup     = NRFX_SPIS_DEFAULT_CSN_PULLUP;
+    spi_inst->slave_config.bit_order      = NRF_SPIS_BIT_ORDER_MSB_FIRST;
+    spi_inst->slave_config.mode           = NRF_SPIS_MODE_0;
+#endif  // NRFX_CHECK(NRFX_SPIS_ENABLED)
 
 
 #if DEVICE_SPI_ASYNCH
@@ -321,23 +427,34 @@ void spi_init(spi_t *obj, PinName mosi, PinName miso, PinName sclk, PinName ssel
  */
 void spi_free(spi_t *obj)
 {
-#if DEVICE_SPI_ASYNCH
     struct spi_s *spi_inst = &obj->spi;
-#else
-    struct spi_s *spi_inst = obj;
-#endif
 
     int instance = spi_inst->instance;
+    // TODO throw error if 'instance >= NORDIC_NRF5_MAX_SPI_INST'
 
     /* Use driver uninit to free instance. */
+    switch (nordic_nrf5_spi_instance[instance].type) {
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+        case NRFX_TYPE_SPI:
+            nrfx_spi_uninit(nordic_nrf5_spi_instance[instance].ptr);
+            break;
+#endif  // NRFX_CHECK(NRFX_SPI_ENABLED)
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
-    nrfx_spim_uninit(&nordic_nrf5_spim_instance[instance]);
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    nrfx_spi_uninit(&nordic_nrf5_spi_instance[instance]);
-#endif
+        case NRFX_TYPE_SPIM:
+            nrfx_spim_uninit(nordic_nrf5_spi_instance[instance].ptr);
+            break;
+#endif  // NRFX_CHECK(NRFX_SPIM_ENABLED)
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+        case NRFX_TYPE_SPIS:
+            nrfx_spis_uninit(nordic_nrf5_spi_instance[instance].ptr);
+            break;
+#endif  // NRFX_CHECK(NRFX_SPIS_ENABLED)
+        default:
+        break;
+    }
 
     /* Mark instance as uninitialized. */
-    nordic_nrf5_spi_initialized[instance] = false;
+    nordic_nrf5_spi_instance[instance].initialised = false;
 }
 
 /** Configure the SPI format
@@ -353,51 +470,27 @@ void spi_format(spi_t *obj, int bits, int mode, int slave)
 {
     /* SPI module only supports 8 bit transfers. */
     MBED_ASSERT(bits == 8);
-    /* SPI module doesn't support Mbed HAL Slave API. */
-    MBED_ASSERT(slave == 0);
 
-#if DEVICE_SPI_ASYNCH
-    struct spi_s *spi_inst = &obj->spi;
-#else
-    struct spi_s *spi_inst = obj;
-#endif
-
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
-    nrf_spim_mode_t new_mode = NRF_SPIM_MODE_0;
-
-    /* Convert Mbed HAL mode to Nordic mode. */
-    if (mode == 0) {
-        new_mode = NRF_SPIM_MODE_0;
-    } else if (mode == 1) {
-        new_mode = NRF_SPIM_MODE_1;
-    } else if (mode == 2) {
-        new_mode = NRF_SPIM_MODE_2;
-    } else if (mode == 3) {
-        new_mode = NRF_SPIM_MODE_3;
+    // if 'slave = 0', ensure that the spi instance being used is SPI/SPIM
+    if (slave == 0)
+    {
+        /* If this assert fails, the obj->spi.instance number is not correctly enabled
+        within sdk_config.h (e.g. spi.instance = 2, so NRFX_SPIM2_ENABLED 1 should be defined) */
+        MBED_ASSERT((nordic_nrf5_spi_instance[obj->spi.instance].type == NRFX_TYPE_SPI) ||
+                    (nordic_nrf5_spi_instance[obj->spi.instance].type == NRFX_TYPE_SPIM));
     }
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    nrf_spi_mode_t new_mode = NRF_SPI_MODE_0;
-
-    /* Convert Mbed HAL mode to Nordic mode. */
-    if (mode == 0) {
-        new_mode = NRF_SPI_MODE_0;
-    } else if (mode == 1) {
-        new_mode = NRF_SPI_MODE_1;
-    } else if (mode == 2) {
-        new_mode = NRF_SPI_MODE_2;
-    } else if (mode == 3) {
-        new_mode = NRF_SPI_MODE_3;
-    }
-#endif
-
-    /* Check if configuration has changed. */
-    if (spi_inst->config.mode != new_mode) {
-        spi_inst->config.mode = new_mode;
-
-        /* Set flag to force update. */
-        spi_inst->update = true;
+    // else if 'slave = 1', ensure that the spi instance being used is SPIS
+    else    // slave == 1
+    {
+        /* If this assert fails, the obj->spi.instance number is not correctly enabled
+        within sdk_config.h (e.g. spi.instance = 2, so NRFX_SPIS2_ENABLED 1 should be defined) */
+        MBED_ASSERT(nordic_nrf5_spi_instance[obj->spi.instance].type == NRFX_TYPE_SPIS);
     }
 
+    // TODO only force update if config/mode/slave has changed
+    /* Set flag to force update. */
+    obj->spi.update = true;
+    
     /* Configure peripheral if necessary. Must be called on each format to ensure the pins are set
      * correctly according to the SPI mode.
      */
@@ -419,7 +512,26 @@ void spi_frequency(spi_t *obj, int hz)
     struct spi_s *spi_inst = obj;
 #endif
 
-#if NRFX_CHECK(NRFX_SPIM_ENABLED)
+#if NRFX_CHECK(NRFX_SPI_ENABLED)
+    nrf_spi_frequency_t new_frequency = NRF_SPI_FREQ_1M;
+
+    /* Convert frequency to Nordic enum type. */
+    if (hz < 250000) {
+        new_frequency = NRF_SPI_FREQ_125K;
+    } else if (hz < 500000) {
+        new_frequency = NRF_SPI_FREQ_250K;
+    } else if (hz < 1000000) {
+        new_frequency = NRF_SPI_FREQ_500K;
+    } else if (hz < 2000000) {
+        new_frequency = NRF_SPI_FREQ_1M;
+    } else if (hz < 4000000) {
+        new_frequency = NRF_SPI_FREQ_2M;
+    } else if (hz < 8000000) {
+        new_frequency = NRF_SPI_FREQ_4M;
+    } else {
+        new_frequency = NRF_SPI_FREQ_8M;
+    }
+#elif NRFX_CHECK(NRFX_SPIM_ENABLED)
     nrf_spim_frequency_t new_frequency = NRF_SPIM_FREQ_1M;
 
     /* Convert frequency to Nordic enum type. */
@@ -442,29 +554,11 @@ void spi_frequency(spi_t *obj, int hz)
     } else {
         new_frequency = NRF_SPIM_FREQ_32M;
     }
-#elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    nrf_spi_frequency_t new_frequency = NRF_SPI_FREQ_1M;
 
-    /* Convert frequency to Nordic enum type. */
-    if (hz < 250000) {
-        new_frequency = NRF_SPI_FREQ_125K;
-    } else if (hz < 500000) {
-        new_frequency = NRF_SPI_FREQ_250K;
-    } else if (hz < 1000000) {
-        new_frequency = NRF_SPI_FREQ_500K;
-    } else if (hz < 2000000) {
-        new_frequency = NRF_SPI_FREQ_1M;
-    } else if (hz < 4000000) {
-        new_frequency = NRF_SPI_FREQ_2M;
-    } else if (hz < 8000000) {
-        new_frequency = NRF_SPI_FREQ_4M;
-    } else {
-        new_frequency = NRF_SPI_FREQ_8M;
-    }
 #endif
     /* Check if configuration has changed. */
-    if (spi_inst->config.frequency != new_frequency) {
-        spi_inst->config.frequency = new_frequency;
+    if (spi_inst->master_config.frequency != new_frequency) {
+        spi_inst->master_config.frequency = new_frequency;
 
         /* Set flag to force update. */
         spi_inst->update = true;
@@ -509,9 +603,9 @@ int spi_master_write(spi_t *obj, int value)
 #endif
 
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
-    ret = nrfx_spim_xfer(&nordic_nrf5_spim_instance[instance], &desc, 0);
+    ret = nrfx_spim_xfer(nordic_nrf5_spim_instance[instance].ptr, &desc, 0);
 #elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    ret = nrfx_spi_xfer(&nordic_nrf5_spi_instance[instance], &desc, 0);
+    ret = nrfx_spi_xfer(nordic_nrf5_spi_instance[instance].ptr, &desc, 0);
 #endif
 
     if (ret != NRFX_SUCCESS) {
@@ -553,11 +647,11 @@ int spi_master_block_write(spi_t *obj, const char *tx_buffer, int tx_length, cha
     int instance = spi_inst->instance;
 
     /* Check if overflow character has changed. */
-    if (spi_inst->config.orc != write_fill) {
+    if (spi_inst->master_config.orc != write_fill) {
 
         /* Store new overflow character and force reconfiguration. */
         spi_inst->update = true;
-        spi_inst->config.orc = write_fill;
+        spi_inst->master_config.orc = write_fill;
     }
 
     /* Configure peripheral if necessary. */
@@ -579,7 +673,7 @@ int spi_master_block_write(spi_t *obj, const char *tx_buffer, int tx_length, cha
 
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
     nrfx_spim_xfer_desc_t desc = NRFX_SPIM_XFER_TRX(tx_buffer, tx_length, rx_buffer, rx_length);
-    result = nrfx_spim_xfer(&nordic_nrf5_spim_instance[instance], &desc, 0);
+    result = nrfx_spim_xfer(nordic_nrf5_spim_instance[instance].ptr, &desc, 0);
 #elif NRFX_CHECK(NRFX_SPI_ENABLED)
     /* Loop until all data is sent and received. */
     while (((tx_length > 0) || (rx_length > 0)) && (result == NRFX_SUCCESS)) {
@@ -602,7 +696,7 @@ int spi_master_block_write(spi_t *obj, const char *tx_buffer, int tx_length, cha
 
         /* Blocking transfer. */
         nrfx_spi_xfer_desc_t desc = NRFX_SPI_XFER_TRX(tx_actual_buffer, tx_actual_length, rx_actual_buffer, rx_actual_length);
-        result = nrfx_spi_xfer(&nordic_nrf5_spi_instance[instance],
+        result = nrfx_spi_xfer(nordic_nrf5_spi_instance[instance].ptr,
                                &desc, 0);
         /* Update loop variables. */
         tx_length -= tx_actual_length;
@@ -764,12 +858,22 @@ static ret_code_t spi_master_transfer_async_continue(spi_t *obj)
     desc.rx_length = rx_length;
 
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
-    ret_code_t result = nrfx_spim_xfer(&nordic_nrf5_spim_instance[obj->spi.instance], &desc, 0);
+    ret_code_t result = nrfx_spim_xfer(nordic_nrf5_spim_instance[obj->spi.instance].ptr, &desc, 0);
 #elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    ret_code_t result = nrfx_spi_xfer(&nordic_nrf5_spi_instance[obj->spi.instance], &desc, 0);
+    ret_code_t result = nrfx_spi_xfer(nordic_nrf5_spi_instance[obj->spi.instance].ptr, &desc, 0);
 #endif
     return result;
 }
+
+
+#if NRFX_CHECK(NRFX_SPIS_ENABLED)
+static void nordic_nrf5_spis_event_handler(nrfx_spis_evt_t const *p_event, void *p_context)
+{
+    // TODO, the SPIS event handling
+
+    // TODO, could this just be merged into a common SPI/SPIM/SPIS event handler?
+}
+#endif
 
 /* Callback function for driver calls. This is called from ISR context. */
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
@@ -991,9 +1095,9 @@ void spi_abort_asynch(spi_t *obj)
 
     /* Abort transfer. */
 #if NRFX_CHECK(NRFX_SPIM_ENABLED)
-    nrfx_spim_abort(&nordic_nrf5_spim_instance[instance]);
+    nrfx_spim_abort(nordic_nrf5_spim_instance[instance].ptr);
 #elif NRFX_CHECK(NRFX_SPI_ENABLED)
-    nrfx_spi_abort(&nordic_nrf5_spi_instance[instance]);
+    nrfx_spi_abort(nordic_nrf5_spi_instance[instance].ptr);
 #endif
     /* Force reconfiguration. */
     object_owner_spi2c_set(instance, NULL);
